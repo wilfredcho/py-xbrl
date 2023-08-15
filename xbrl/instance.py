@@ -557,8 +557,9 @@ def _extract_non_fraction_value(fact_elem: ET.Element) -> float or None or str:
     fact_format = fact_elem.attrib['format'] if 'format' in fact_elem.attrib else None
     value_scale: int = int(fact_elem.attrib['scale']) if 'scale' in fact_elem.attrib else 0
     value_sign: str or None = fact_elem.attrib['sign'] if 'sign' in fact_elem.attrib else None
-
-    if fact_format:
+    if fact_value in {"", "nil"} :
+        fact_value = 'nan'
+    elif fact_format:
         # extract transformation registry namespace and transformation rule code
         registryPrefix, formatCode = fact_format.split(':')
         registryNS: str = fact_elem.attrib['ns_map'][registryPrefix]
@@ -571,8 +572,7 @@ def _extract_non_fraction_value(fact_elem: ET.Element) -> float or None or str:
         except TransformationException:
             logging.warning(f'Could not transform value "{fact_value}" with format {fact_format}')
             return fact_value
-    if fact_value == "":
-        fact_value = 'nan'
+
     scaled_value = float(fact_value) * pow(10, value_scale)
     # Floating-point error mitigation
     if abs(scaled_value) > 1e6: scaled_value = float(round(scaled_value))
