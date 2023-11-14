@@ -10,7 +10,7 @@ from urllib.parse import unquote
 
 from xbrl import XbrlParseException, TaxonomyNotFound
 from xbrl.cache import HttpCache
-from xbrl.helper.uri_helper import resolve_uri, compare_uri
+from xbrl.helper.uri_helper import resolve_uri, compare_uri, is_url
 from xbrl.linkbase import Linkbase, ExtendedLink, LinkbaseType, parse_linkbase, parse_linkbase_url, Label
 
 logger = logging.getLogger(__name__)
@@ -593,9 +593,8 @@ def parse_taxonomy_url(schema_url: str, cache: HttpCache) -> TaxonomySchema:
     :param cache: :class:`xbrl.cache.HttpCache` instance
     :return: parsed :class:`xbrl.taxonomy.TaxonomySchema` object
     """
-    if not schema_url.startswith('http'): raise XbrlParseException(
-        'This function only parses remotely saved taxonomies. Please use parse_taxonomy to parse local taxonomy schemas')
-
+    if not is_url(schema_url): raise XbrlParseException('This function only parses remotely saved taxonomies. '
+                                                        'Please use parse_taxonomy to parse local taxonomy schemas')
     schema_path: str = cache.cache_file(schema_url)
     return parse_taxonomy(schema_path, cache, schema_url)
 
@@ -611,8 +610,8 @@ def parse_taxonomy(schema_path: str, cache: HttpCache, schema_url: str or None =
     :return: parsed :class:`xbrl.taxonomy.TaxonomySchema` object
     """
     schema_path = str(schema_path)
-    if schema_path.startswith('http'): raise XbrlParseException(
-        'This function only parses locally saved taxonomies. Please use parse_taxonomy_url to parse remote taxonomy schemas')
+    if is_url(schema_path): raise XbrlParseException('This function only parses locally saved taxonomies. '
+                                                     'Please use parse_taxonomy_url to parse remote taxonomy schemas')
     if not os.path.exists(schema_path):
         raise TaxonomyNotFound(f"Could not find taxonomy schema at {schema_path}")
 
@@ -625,10 +624,14 @@ def parse_taxonomy(schema_path: str, cache: HttpCache, schema_url: str or None =
     import_elements: List[ET.Element] = root.findall('xsd:import', NAME_SPACES)
 
     for import_element in import_elements:
-        import_uri = import_element.attrib['schemaLocation']
+        import_uri = import_element.attrib['schemaLocation'].strip()
+
+        # Skip empty imports
+        if import_uri == "":
+            continue
 
         # sometimes the import schema location is relative. i.e schemaLocation="xbrl-linkbase-2003-12-31.xsd"
-        if import_uri.startswith('http'):
+        if is_url(import_uri):
             # fetch the schema file from remote
             taxonomy.imports.append(parse_taxonomy_url(import_uri, cache))
         elif schema_url:
@@ -679,7 +682,7 @@ def parse_taxonomy(schema_path: str, cache: HttpCache, schema_url: str or None =
             linkbase_uri)
 
         # check if the linkbase url is relative
-        if linkbase_uri.startswith('http'):
+        if is_url(linkbase_uri):
             # fetch the linkbase from remote
             linkbase: Linkbase = parse_linkbase_url(linkbase_uri, linkbase_type, cache)
         elif schema_url:
